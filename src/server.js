@@ -24,7 +24,7 @@ const {
   APP_SECRET,
   PRIVATE_KEY,
   PASSPHRASE = "test",
-  PORT = "3001",
+  PORT = "5821",
 } = process.env;
 
 
@@ -121,7 +121,7 @@ app.post("/", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.send(`<pre>Nothing to see here.
+  res.send(`<pre>Nothing to see here from vscode.
 Checkout README.md to start.</pre>`);
 });
 

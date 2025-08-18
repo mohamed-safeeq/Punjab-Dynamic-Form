@@ -1,152 +1,181 @@
-// SCREEN_RESPONSES: Define screen data for WhatsApp Flows
+const API_BASE = "https://whatsappphagwaraapi.softelsolutions.in/api/Bot";
+const WEBHOOK_URL = "https://webhook.site/fc10df7f-3399-48cb-82ce-4680c80ad218";
+
+const ENDPOINTS = {
+  departments: `${API_BASE}/GetDepartments`,
+  wards: `${API_BASE}/GetWards`,
+  complaints: (deptId) => `${API_BASE}/GetComplaintTypes/${deptId}`,
+};
+
+const DEFAULT_SCREEN_TWO_DATA = {
+  Department: [],
+  Ward: [],
+  Name: "",
+  Mobile: "",
+  Property_House: "",
+  Address: "",
+  Ward_Id: "",
+  Select_Complaint: [],
+  Selected_Department_Id: "",
+  Selected_Complaint_Id: "",
+  Selected_Complaint_Title: "",
+  Landmark: "",
+  Complaint_Details: "",
+};
+
 export const SCREEN_RESPONSES = {
-  APPOINTMENT: {
-      screen: "APPOINTMENT",
-      data: {
-          department: [
-              { id: "shopping", title: "my test" },
-              { id: "clothing", title: "second test" },
-              { id: "home", title: "third test" },
-              { id: "electronics", title: "Electronics & Appliances" },
-              { id: "beauty", title: "Beauty & Personal Care" }
-          ],
-          location: [
-              { id: "1", title: "King’s Cross, Chennai" },
-              { id: "2", title: "Oxford Street, Chennai" },
-              { id: "3", title: "Covent Garden, Chennai" },
-              { id: "4", title: "Piccadilly Circus, Chennai" }
-          ],
-          is_location_enabled: true,
-          date: [
-              { id: "2024-01-01", title: "Mon Jan 01 2024" },
-              { id: "2024-01-02", title: "Tue Jan 02 2024" },
-              { id: "2024-01-03", title: "Wed Jan 03 2024" }
-          ],
-          is_date_enabled: true,
-          time: [
-              { id: "10:30", title: "10:30" },
-              { id: "11:00", title: "11:00", enabled: false },
-              { id: "11:30", title: "11:30" },
-              { id: "12:00", title: "12:00", enabled: false },
-              { id: "12:30", title: "12:30" }
-          ],
-          is_time_enabled: true
-      }
-  },
-  DETAILS: {
-      screen: "DETAILS",
-      data: {
-          department: "beauty",
-          location: "1",
-          date: "2024-01-01",
-          time: "11:30"
-      }
-  },
-  SUMMARY: {
-      screen: "SUMMARY",
-      data: {
-          appointment: "Beauty & Personal Care Department at King's Cross, Chennai\nMon Jan 01 2024 at 11:30.",
-          details: "Name: John Doe\nEmail: john@example.com\nPhone: 123456789\n\nA free skin care consultation, please",
-          department: "beauty",
-          location: "1",
-          date: "2024-01-01",
-          time: "11:30",
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "123456789",
-          more_details: "A free skin care consultation, please"
-      }
-  },
-  SUCCESS: {
-      screen: "SUCCESS",
-      data: {
-          extension_message_response: {
-              params: {
-                  flow_token: "REPLACE_FLOW_TOKEN",
-                  some_param_name: "PASS_CUSTOM_VALUE"
-              }
-          }
-      }
+  SCREENONE: { screen: "screenone", data: {} },
+  SCREENTWO: { screen: "screentwo", data: { ...DEFAULT_SCREEN_TWO_DATA } },
+};
+
+// ----------- API UTILS -----------
+const fetchAPI = async (url) => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Fetch failed: ${url}`);
+    return await response.json();
+  } catch (error) {
+    console.error(`API error (${url}):`, error);
+    return null;
   }
 };
 
-// Function to determine the next screen in the flow
+const mapList = (list, idKey, titleKey) =>
+  Array.isArray(list)
+    ? list.map((item) => ({
+        id: item[idKey]?.toString() || "",
+        title: item[titleKey] || "",
+      }))
+    : [];
+
+const fetchDepartments = async () => {
+  const result = await fetchAPI(ENDPOINTS.departments);
+  return result?.status === 1 ? mapList(result.data, "departmentId", "department") : [];
+};
+
+const fetchWards = async () => {
+  const result = await fetchAPI(ENDPOINTS.wards);
+  return result?.status === 1 ? mapList(result.data, "wardId", "ward") : [];
+};
+
+const fetchComplaints = async (departmentId) => {
+  if (!departmentId) return [];
+  const result = await fetchAPI(ENDPOINTS.complaints(departmentId));
+  return result?.status === 1 ? mapList(result.data, "complaintTypeId", "complaintType") : [];
+};
+
+const submitComplaint = async (complaintData) => {
+  try {
+    const response = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        complaint: complaintData,
+        metadata: { submissionTime: new Date().toISOString() },
+      }),
+    });
+    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    return { referenceNumber: `COMP-${Date.now()}` };
+  } catch (error) {
+    console.error("Error submitting complaint:", error);
+    throw error;
+  }
+};
+
+// ----------- SCREEN DATA INITIALIZER -----------
+const initializeScreenTwoData = async (userData = {}) => {
+  const [Department, Ward] = await Promise.all([fetchDepartments(), fetchWards()]);
+  const Select_Complaint = userData.Selected_Department_Id
+    ? await fetchComplaints(userData.Selected_Department_Id)
+    : [];
+  return {
+    ...SCREEN_RESPONSES.SCREENTWO,
+    data: {
+      ...DEFAULT_SCREEN_TWO_DATA,
+      ...userData,
+      Department,
+      Ward,
+      Select_Complaint,
+    },
+  };
+};
+
+// ----------- SCREEN NAVIGATION -----------
 export const getNextScreen = async (decryptedBody) => {
-  const { screen, data, action, flow_token } = decryptedBody;
+  const { screen, data, action } = decryptedBody;
 
-  // Handle health check request
-  if (action === "ping") {
-      return { data: { status: "active" } };
-  }
-
-  // Handle error notification
-  if (data?.error) {
-      console.warn("Received client error:", data);
-      return { data: { acknowledged: true } };
-  }
-
-  // Handle initial request when opening the flow
-  if (action === "INIT") {
-      return {
-          ...SCREEN_RESPONSES.APPOINTMENT,
-          data: {
-              ...SCREEN_RESPONSES.APPOINTMENT.data,
-              is_location_enabled: false,
-              is_date_enabled: false,
-              is_time_enabled: false
-          }
-      };
-  }
+  if (action === "ping") return { data: { status: "active" } };
+  if (data?.error) return { data: { acknowledged: true } };
+  if (action === "INIT") return SCREEN_RESPONSES.SCREENONE;
 
   if (action === "data_exchange") {
-      switch (screen) {
-          case "APPOINTMENT":
-              return {
-                  ...SCREEN_RESPONSES.APPOINTMENT,
-                  data: {
-                      ...SCREEN_RESPONSES.APPOINTMENT.data,
-                      is_location_enabled: Boolean(data.department),
-                      is_date_enabled: Boolean(data.department) && Boolean(data.location),
-                      is_time_enabled: Boolean(data.department) && Boolean(data.location) && Boolean(data.date),
-                      location: SCREEN_RESPONSES.APPOINTMENT.data.location.slice(0, 3),
-                      date: SCREEN_RESPONSES.APPOINTMENT.data.date.slice(0, 3),
-                      time: SCREEN_RESPONSES.APPOINTMENT.data.time.slice(0, 3)
-                  }
-              };
-
-          case "DETAILS":
-              // Ensure IDs exist before accessing .title to prevent errors
-              const department = SCREEN_RESPONSES.APPOINTMENT.data.department.find(dept => dept.id === data.department);
-              const location = SCREEN_RESPONSES.APPOINTMENT.data.location.find(loc => loc.id === data.location);
-              const date = SCREEN_RESPONSES.APPOINTMENT.data.date.find(d => d.id === data.date);
-
-              const departmentName = department ? department.title : "Unknown";
-              const locationName = location ? location.title : "Unknown";
-              const dateName = date ? date.title : "Unknown";
-
-              const appointment = `${departmentName} at ${locationName}\n${dateName} at ${data.time}`;
-              const details = `Name: ${data.name}\nEmail: ${data.email}\nPhone: ${data.phone}\n"${data.more_details}"`;
-
-              return {
-                  ...SCREEN_RESPONSES.SUMMARY,
-                  data: { appointment, details, ...data }
-              };
-
-          case "SUMMARY":
-              return {
-                  ...SCREEN_RESPONSES.SUCCESS,
-                  data: {
-                      extension_message_response: {
-                          params: { flow_token }
-                      }
-                  }
-              };
-
-          default:
-              break;
+    if (screen === "screenone") {
+      return await initializeScreenTwoData({
+        Name: data.Name,
+        Mobile: data.Mobile,
+        Property_House: data["Property/House"],
+        Address: data.Address,
+      });
+    }
+    if (screen === "screentwo") {
+      if (data.trigger === "Department_selected") {
+        const complaints = await fetchComplaints(data.departmentId);
+        return {
+          ...(await initializeScreenTwoData({
+            ...data,
+            Selected_Department_Id: data.departmentId,
+            Selected_Complaint_Id: "",
+            Selected_Complaint_Title: "",
+          })),
+          data: {
+            ...(await initializeScreenTwoData({
+              ...data,
+              Selected_Department_Id: data.departmentId,
+            })).data,
+            Select_Complaint: complaints,
+            Selected_Department_Id: data.departmentId,
+            Selected_Complaint_Id: "",
+            Selected_Complaint_Title: "",
+          },
+        };
       }
+      if (data.trigger === "Select_Complaint_selected") {
+        const currentData = await initializeScreenTwoData({
+          ...data,
+          Selected_Department_Id: data.departmentId,
+        });
+        const selectedComplaint = currentData.data.Select_Complaint.find(
+          (c) => c.id === data.complaintId
+        );
+        return {
+          ...currentData,
+          data: {
+            ...currentData.data,
+            Selected_Complaint_Id: data.complaintId,
+            Selected_Complaint_Title: selectedComplaint?.title || "",
+          },
+        };
+      }
+      return await initializeScreenTwoData(data);
+    }
   }
 
-  console.error("Unhandled request body:", decryptedBody);
-  throw new Error("Unhandled endpoint request. Make sure you handle the request action & screen logged above.");
+  if (action === "complete" && screen === "screentwo") {
+    const complaintData = {
+      name: data.Name,
+      mobile: data.Mobile,
+      propertyNo: data.Property_House,
+      address: data.Address,
+      departmentId: data.Selected_Department_Id,
+      ward: data.Ward_Id,
+      complaintTypeId: data.Selected_Complaint_Id,
+      landmark: data.Landmark,
+      details: data.Complaint_Details,
+      timestamp: new Date().toISOString(),
+    };
+    return await submitComplaint(complaintData);
+  }
+
+  // Default fallback
+  return SCREEN_RESPONSES.SCREENONE;
 };
