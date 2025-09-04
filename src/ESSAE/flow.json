@@ -1,0 +1,86 @@
+{
+  "version": "7.2",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "SCREENONE": []
+  },
+  "screens": [
+    {
+      "id": "SCREENONE",
+      "terminal": true,
+      "title": "${data.screen_name}",
+      "data": {
+         "screen_name": {
+          "type": "string",
+          "__example__": "Reseller"
+        },
+         "category": {
+          "type": "string",
+          "__example__": "Reseller"
+        },
+         "screen_heading": {
+          "type": "string",
+          "__example__": "Update RES"
+        },
+        "department": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "1",
+              "title": "test field"
+            },
+           {
+              "id": "2",
+              "title": "test field 2"
+            }
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "text_input_form",
+            "children": [
+              {
+                "type": "TextCaption",
+                "text": "${data.screen_heading}"
+              },
+              {
+                "type": "Dropdown",
+                "name": "department",
+                "label": "${data.screen_name}",
+                "required": true,
+                "data-source": "${data.department}"
+              },
+              {
+                "type": "Footer",
+                "label": "Submit",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "department": "${form.department}",
+                    "category":"${data.category}"
+
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

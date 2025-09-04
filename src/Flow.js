@@ -1,5 +1,5 @@
 const API_BASE = "https://whatsappphagwaraapi.softelsolutions.in/api/Bot";
-const WEBHOOK_URL = "https://webhook.site/fc10df7f-3399-48cb-82ce-4680c80ad218";
+//const WEBHOOK_URL = "https://webhook.site/fc10df7f-3399-48cb-82ce-4680c80ad218";
 
 const ENDPOINTS = {
   departments: `${API_BASE}/GetDepartments`,
